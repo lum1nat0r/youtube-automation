@@ -6,10 +6,10 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY upload.py make_shorts.py api.py .
+COPY app/upload.py app/make_shorts.py app/api.py .
 
 # /config: client_secret.json + token.json (OAuth — wird gemountet, NIE im Image)
 # /material: 2_output (Quellvideos)
