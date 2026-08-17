@@ -49,7 +49,10 @@ def status():
 
 
 @app.post("/shorts")
-def run_shorts(req: ShortsReq):
+def run_shorts(req: ShortsReq | None = None):
+    # Body optional: ein nackter POST ohne Body verarbeitet alle neuen Videos
+    if req is None:
+        req = ShortsReq()
     if not _lock.acquire(blocking=False):
         raise HTTPException(409, "Shorts-Pipeline läuft bereits")
     try:
