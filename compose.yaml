@@ -1,0 +1,12 @@
+services:
+  yt-service:
+    image: ghcr.io/lum1nat0r/youtube-automation:latest
+    container_name: yt-service
+    restart: unless-stopped
+    ports:
+      # Nur localhost erreichbar (der VPS-Cron ruft über SSH -> curl auf)
+      - "127.0.0.1:8080:8000"
+    volumes:
+      - /mnt/user/video-material/Lumis-Lane/2_output:/material
+      - /mnt/user/appdata/shorts-pipeline:/pipeline
+      - /mnt/user/appdata/youtube-uploader/config:/config

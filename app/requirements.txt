@@ -1,0 +1,6 @@
+fastapi==0.115.*
+uvicorn==0.30.*
+google-api-python-client
+google-auth-oauthlib
+pillow
+numpy
