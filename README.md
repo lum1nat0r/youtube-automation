@@ -45,9 +45,9 @@ compose.yaml       # Portainer/docker-compose-Stack
 
 ```bash
 # Service (läuft dauerhaft, Port 127.0.0.1:8080)
-curl -s http://localhost:8080/health
-curl -s -X POST http://localhost:8080/shorts            # neue Videos -> Shorts (privat)
-curl -s -X POST http://localhost:8080/shorts -H 'content-type: application/json' \
+curl -s http://localhost:8082/health
+curl -s -X POST http://localhost:8082/shorts            # neue Videos -> Shorts (privat)
+curl -s -X POST http://localhost:8082/shorts -H 'content-type: application/json' \
      -d '{"video":"schoenau.mp4","dry_run":true}'
 curl -s -X POST http://localhost:8080/upload -H 'content-type: application/json' \
      -d '{"video":"/material/x.mp4","metadata":"/pipeline/out/x/x.md"}'

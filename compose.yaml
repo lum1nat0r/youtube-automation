@@ -5,7 +5,8 @@ services:
     restart: unless-stopped
     ports:
       # Nur localhost erreichbar (der VPS-Cron ruft über SSH -> curl auf)
-      - "127.0.0.1:8080:8000"
+      # Achtung: 8080 ist auf apollo durch Immich belegt!
+      - "127.0.0.1:8082:8000"
     volumes:
       - /mnt/user/video-material/Lumis-Lane/2_output:/material
       - /mnt/user/appdata/shorts-pipeline:/pipeline
