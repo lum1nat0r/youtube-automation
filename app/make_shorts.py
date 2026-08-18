@@ -306,11 +306,23 @@ def run_pipeline(video=None, dry_run=False):
                         vstate[key] = srec
                         save_state(state)
                     title, description, tags = parse_metadata(md)
+                    ai = srec.get("ai_metadata", {})
+                    platform_copy = ai.get("copy") if ai.get("status") == "generated" else None
+                    if platform_copy:
+                        try:
+                            for name in ("youtube", "tiktok", "instagram"):
+                                if not isinstance(platform_copy[name], dict):
+                                    raise KeyError(name)
+                            postiz["metadata_source"] = "ai_shadow"
+                        except (KeyError, TypeError):
+                            platform_copy = None
+                    if not platform_copy:
+                        postiz["metadata_source"] = "template_fallback"
                     postiz["status"] = "draft_creating"
                     srec["postiz"] = postiz
                     vstate[key] = srec
                     save_state(state)
-                    drafts = client.create_drafts(media, title, description, tags)
+                    drafts = client.create_drafts(media, title, description, tags, platform_copy=platform_copy)
                 except PostizError as exc:
                     log(f"  FEHLER Postiz-Übergabe {key}: {exc}")
                     rec["shorts"].append({"key": key, "error": str(exc)})

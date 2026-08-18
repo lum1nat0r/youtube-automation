@@ -80,23 +80,35 @@ class PostizClient:
             raise PostizError("Postiz upload response has no media id/path")
         return MediaAsset(id=data["id"], path=data["path"])
 
-    def create_drafts(self, media: MediaAsset, title: str, description: str, tags: list[str]) -> Any:
+    def create_drafts(self, media: MediaAsset, title: str, description: str, tags: list[str],
+                      platform_copy: dict[str, Any] | None = None) -> Any:
         integrations = self.integrations_by_provider()
+        if platform_copy:
+            youtube = platform_copy["youtube"]
+            tiktok = platform_copy["tiktok"]
+            instagram = platform_copy["instagram"]
+            title, description, tags = youtube["title"], youtube["description"], youtube["tags"]
+            tiktok_title, tiktok_content = tiktok["title"], tiktok["caption"]
+            instagram_content = instagram["caption"]
+        else:
+            tiktok_title = title[:90]
+            tiktok_content = (
+                "POV: you take the long way home 🔊🏍️\n\n"
+                "No music. No voiceover. Just the GSX-8S + Arrow exhaust doing its thing.\n\n"
+                "Somewhere in Austria 🇦🇹\n\n"
+                "#GSX8S #SuzukiGSX8S #MotorcycleTok #RawSound #BikerLife #MotorcycleRide #fyp"
+            )
+            instagram_content = (
+                "POV: you find that one stretch of road and forget where you were headed. 🔊🏍️\n\n"
+                "No music. No voiceover. Just raw GSX-8S + Arrow exhaust sound.\n\n"
+                "Somewhere in Austria.\n\n"
+                "#GSX8S #SuzukiGSX8S #RawSound #MotorcycleRide #BikerLife #ArrowExhaust"
+            )
         tag_objects = [{"value": tag, "label": tag} for tag in tags]
         attachment = [{"id": media.id, "path": media.path}]
         youtube_value = [{"content": description, "image": attachment}]
-        tiktok_value = [{"content": (
-            "POV: you take the long way home 🔊🏍️\n\n"
-            "No music. No voiceover. Just the GSX-8S + Arrow exhaust doing its thing.\n\n"
-            "Somewhere in Austria 🇦🇹\n\n"
-            "#GSX8S #SuzukiGSX8S #MotorcycleTok #RawSound #BikerLife #MotorcycleRide #fyp"
-        ), "image": attachment}]
-        instagram_value = [{"content": (
-            "POV: you find that one stretch of road and forget where you were headed. 🔊🏍️\n\n"
-            "No music. No voiceover. Just raw GSX-8S + Arrow exhaust sound.\n\n"
-            "Somewhere in Austria.\n\n"
-            "#GSX8S #SuzukiGSX8S #RawSound #MotorcycleRide #BikerLife #ArrowExhaust"
-        ), "image": attachment}]
+        tiktok_value = [{"content": tiktok_content, "image": attachment}]
+        instagram_value = [{"content": instagram_content, "image": attachment}]
         payload = {
             "type": "draft",
             # Postiz requires date even for drafts; it is ignored until the draft is scheduled.
@@ -116,7 +128,7 @@ class PostizClient:
                     "integration": {"id": integrations["tiktok"]["id"]},
                     "value": tiktok_value,
                     "settings": {
-                        "__type": "tiktok", "title": title[:90], "privacy_level": "SELF_ONLY",
+                        "__type": "tiktok", "title": tiktok_title[:90], "privacy_level": "SELF_ONLY",
                         "duet": True, "stitch": True, "comment": True, "autoAddMusic": "no",
                         "brand_content_toggle": False, "brand_organic_toggle": False,
                         "video_made_with_ai": False, "content_posting_method": "UPLOAD",
