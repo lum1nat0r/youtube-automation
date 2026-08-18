@@ -84,7 +84,19 @@ class PostizClient:
         integrations = self.integrations_by_provider()
         tag_objects = [{"value": tag, "label": tag} for tag in tags]
         attachment = [{"id": media.id, "path": media.path}]
-        common_value = [{"content": description, "image": attachment}]
+        youtube_value = [{"content": description, "image": attachment}]
+        tiktok_value = [{"content": (
+            "POV: you take the long way home 🔊🏍️\n\n"
+            "No music. No voiceover. Just the GSX-8S + Arrow exhaust doing its thing.\n\n"
+            "Somewhere in Austria 🇦🇹\n\n"
+            "#GSX8S #SuzukiGSX8S #MotorcycleTok #RawSound #BikerLife #MotorcycleRide #fyp"
+        ), "image": attachment}]
+        instagram_value = [{"content": (
+            "POV: you find that one stretch of road and forget where you were headed. 🔊🏍️\n\n"
+            "No music. No voiceover. Just raw GSX-8S + Arrow exhaust sound.\n\n"
+            "Somewhere in Austria.\n\n"
+            "#GSX8S #SuzukiGSX8S #RawSound #MotorcycleRide #BikerLife #ArrowExhaust"
+        ), "image": attachment}]
         payload = {
             "type": "draft",
             # Postiz requires date even for drafts; it is ignored until the draft is scheduled.
@@ -94,7 +106,7 @@ class PostizClient:
             "posts": [
                 {
                     "integration": {"id": integrations["youtube"]["id"]},
-                    "value": common_value,
+                    "value": youtube_value,
                     "settings": {
                         "__type": "youtube", "title": title, "type": "private",
                         "selfDeclaredMadeForKids": "no", "tags": tag_objects,
@@ -102,7 +114,7 @@ class PostizClient:
                 },
                 {
                     "integration": {"id": integrations["tiktok"]["id"]},
-                    "value": common_value,
+                    "value": tiktok_value,
                     "settings": {
                         "__type": "tiktok", "title": title[:90], "privacy_level": "SELF_ONLY",
                         "duet": True, "stitch": True, "comment": True, "autoAddMusic": "no",
@@ -112,7 +124,7 @@ class PostizClient:
                 },
                 {
                     "integration": {"id": integrations["instagram-standalone"]["id"]},
-                    "value": common_value,
+                    "value": instagram_value,
                     "settings": {
                         "__type": "instagram-standalone", "post_type": "post",
                         "is_trial_reel": False, "collaborators": [],

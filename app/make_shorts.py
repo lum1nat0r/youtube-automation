@@ -155,17 +155,18 @@ def nice_name(stem):
     return base.replace("_", " ").title()
 
 
-def make_metadata(video_label, seg_len):
-    title = (f"{BIKE_TITLE} – {video_label} – {seg_len}s of Pure Sound | Raw Sound")
+def make_metadata(video_label, seg_len, variant=0):
+    titles = [
+        "POV: The Road Was Too Good to Leave | GSX-8S Raw Sound",
+        "POV: You Take the Long Way Home | GSX-8S Raw Sound",
+        "POV: The Perfect Stretch of Road | GSX-8S Raw Sound",
+    ]
+    title = titles[variant % len(titles)]
     desc = (
-        "Raw sound. No music. No voiceover. Just the GSX-8S and the Arrows "
-        f"exhaust — {seg_len} seconds of the best part of the ride.\n\n"
-        f"📍 Route: {video_label}\n"
-        "🏍️ Bike: Suzuki GSX-8S (Skye)\n"
-        "🔊 Exhaust: Arrows Performance System\n"
-        "🎬 Footage: 4K, raw motorcycle sound\n\n"
-        "Welcome to Lumi's Lane — where every ride tells a story. "
-        "Subscribe for more rides, routes, and raw two-wheeled experiences."
+        "POV: you find that one stretch of road and forget where you were headed. 🔊🏍️\n\n"
+        "No music. No voiceover. Just raw GSX-8S + Arrow exhaust sound.\n\n"
+        "Somewhere in Austria.\n\n"
+        "Welcome to Lumi's Lane — where every ride tells a story."
     )
     return f"{title}\n\n{desc}\n\n{HASHTAGS}\n"
 
@@ -256,7 +257,7 @@ def run_pipeline(video=None, dry_run=False):
                     log(f"  Schneide {key}: ab {start}s, {seg_len}s ...")
                     make_short(src, mp4, start, width, height, seg_len)
                     with open(md, "w", encoding="utf-8") as f:
-                        f.write(make_metadata(label, seg_len))
+                        f.write(make_metadata(label, seg_len, i - 1))
                 log(f"  {key}: {mp4} ({os.path.getsize(mp4)/1e6:.1f} MB)")
                 if dry_run:
                     srec["start"], srec["len"] = start, seg_len
