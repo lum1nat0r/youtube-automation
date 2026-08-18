@@ -178,11 +178,18 @@ def _recent_copy(state):
     return entries[-MAX_RECENT_ITEMS:]
 
 
-def _normalize_caption(text, hashtags):
-    """Keep model prose but own the platform taxonomy and prevent wrong labels."""
+def _normalize_caption(text, hashtags, max_prose_chars=None):
+    """Keep model prose but own taxonomy, prohibited terms, and length limits."""
     prose = re.sub(r"(?<!\w)#[A-Za-z0-9_]+", "", text)
+    prose = re.sub(r"\briders?\b", "motorcycle", prose, flags=re.IGNORECASE)
     prose = re.sub(r"[ \t]+\n", "\n", prose)
     prose = re.sub(r"\n{3,}", "\n\n", prose).strip()
+    if max_prose_chars and len(prose) > max_prose_chars:
+        candidate = prose[:max_prose_chars + 1]
+        cut = max(candidate.rfind("."), candidate.rfind("!"), candidate.rfind("?"))
+        if cut < max_prose_chars // 2:
+            cut = candidate.rfind(" ")
+        prose = candidate[:cut + 1].rstrip()
     return f"{prose}\n\n{hashtags}"
 
 
@@ -200,7 +207,8 @@ Rules:
 - No exact route, road name, speed, weather claim, or invented event.
 - Generic location is allowed: 'Somewhere in Austria.'
 - The motorcycle is a Suzuki GSX-8S with Arrow exhaust.
-- Never call the GSX-8S a scooter; never use scooter, moped, or #ScooterRider.
+- Never call the GSX-8S a scooter; never use scooter, moped, rider, or riders in any caption.
+- Instagram prose must be <= 360 characters; concise beats complete.
 - Do not claim speed, a highway, exact weather, or a route name unless supplied in the scene facts.
 - Hashtags will be added by the pipeline: write no hashtags yourself.
 - YouTube title must include 'GSX-8S' and 'Raw Sound', be <= 100 chars, and differ materially from recent titles.
@@ -227,7 +235,7 @@ Return JSON only:
     yt["description"] = _normalize_caption(yt["description"], YOUTUBE_HASHTAGS)
     yt["tags"] = ["GSX8S", "Suzuki GSX-8S", "raw sound", "motorcycle ride", "Arrow exhaust", "motorcycle shorts", "Austria"]
     copy["tiktok"]["caption"] = _normalize_caption(copy["tiktok"]["caption"], TIKTOK_HASHTAGS)
-    copy["instagram"]["caption"] = _normalize_caption(copy["instagram"]["caption"], INSTAGRAM_HASHTAGS)
+    copy["instagram"]["caption"] = _normalize_caption(copy["instagram"]["caption"], INSTAGRAM_HASHTAGS, max_prose_chars=360)
     return copy
 
 
