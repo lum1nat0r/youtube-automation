@@ -57,7 +57,12 @@ class PostizClient:
         items = data.get("integrations", data) if isinstance(data, dict) else data
         if not isinstance(items, list):
             raise PostizError("Unexpected integrations response")
-        found = {item.get("providerIdentifier"): item for item in items if item.get("providerIdentifier")}
+        found = {}
+        for item in items:
+            provider = item.get("identifier") or item.get("providerIdentifier")
+            if provider:
+                found[provider] = item
+
         required = {"youtube", "tiktok", "instagram-standalone"}
         missing = sorted(required - found.keys())
         if missing:
