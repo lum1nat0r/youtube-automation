@@ -17,7 +17,8 @@ from pathlib import Path
 import requests
 
 AI_METADATA_VERSION = "2026-08-18-shadow-v2-ollama"
-FRAME_POSITIONS = (0.05, 0.18, 0.33, 0.50, 0.67, 0.82, 0.95)
+# Five compact frames fit Ollama's default 4k context while still covering the ride.
+FRAME_POSITIONS = (0.08, 0.28, 0.50, 0.72, 0.92)
 MAX_RECENT_ITEMS = 24
 
 
@@ -75,7 +76,7 @@ def extract_frames(video_path, directory):
         frame = os.path.join(directory, f"frame-{index:02d}.jpg")
         _run([
             "ffmpeg", "-v", "error", "-ss", f"{timestamp:.3f}", "-i", video_path,
-            "-frames:v", "1", "-vf", "scale=768:-2", "-q:v", "4", "-y", frame,
+            "-frames:v", "1", "-vf", "scale=512:-2", "-q:v", "5", "-y", frame,
         ])
         frames.append({"timestamp_seconds": round(timestamp, 2), "path": frame})
     return frames
