@@ -114,7 +114,7 @@ class PostizClient:
                     "integration": {"id": integrations["instagram-standalone"]["id"]},
                     "value": common_value,
                     "settings": {
-                        "__type": "instagram-standalone", "post_type": "reel",
+                        "__type": "instagram-standalone", "post_type": "post",
                         "is_trial_reel": False, "collaborators": [],
                     },
                 },

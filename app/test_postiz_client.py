@@ -55,7 +55,7 @@ class PostizPayloadTests(unittest.TestCase):
         self.assertEqual(youtube["settings"]["type"], "private")
         self.assertEqual(tiktok["settings"]["content_posting_method"], "UPLOAD")
         self.assertEqual(tiktok["settings"]["privacy_level"], "SELF_ONLY")
-        self.assertEqual(instagram["settings"]["post_type"], "reel")
+        self.assertEqual(instagram["settings"]["post_type"], "post")
         for item in post_payload["posts"]:
             self.assertEqual(item["value"][0]["image"][0]["path"], "https://media.example/short.mp4")
     def test_rejects_an_untrusted_postiz_host(self):
