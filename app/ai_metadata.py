@@ -20,6 +20,9 @@ AI_METADATA_VERSION = "2026-08-18-shadow-v2-ollama"
 # Five compact frames fit Ollama's default 4k context while still covering the ride.
 FRAME_POSITIONS = (0.08, 0.28, 0.50, 0.72, 0.92)
 MAX_RECENT_ITEMS = 24
+YOUTUBE_HASHTAGS = "#Shorts #GSX8S #SuzukiGSX8S #RawSound #MotorcycleRide #BikerLife #ArrowExhaust"
+TIKTOK_HASHTAGS = "#GSX8S #SuzukiGSX8S #MotorcycleTok #RawSound #BikerLife #MotorcycleRide #fyp"
+INSTAGRAM_HASHTAGS = "#GSX8S #SuzukiGSX8S #RawSound #MotorcycleRide #BikerLife #ArrowExhaust"
 
 
 class AIMetadataError(RuntimeError):
@@ -175,6 +178,14 @@ def _recent_copy(state):
     return entries[-MAX_RECENT_ITEMS:]
 
 
+def _normalize_caption(text, hashtags):
+    """Keep model prose but own the platform taxonomy and prevent wrong labels."""
+    prose = re.sub(r"(?<!\w)#[A-Za-z0-9_]+", "", text)
+    prose = re.sub(r"[ \t]+\n", "\n", prose)
+    prose = re.sub(r"\n{3,}", "\n\n", prose).strip()
+    return f"{prose}\n\n{hashtags}"
+
+
 def generate_copy(config, scene_profile, state):
     recent = _recent_copy(state)
     prompt = f"""Create fresh, trendy English social copy for one Lumi's Lane raw motorcycle short.
@@ -189,11 +200,13 @@ Rules:
 - No exact route, road name, speed, weather claim, or invented event.
 - Generic location is allowed: 'Somewhere in Austria.'
 - The motorcycle is a Suzuki GSX-8S with Arrow exhaust.
-- Voice: concise, natural, emotional, POV/hook-oriented. No generic marketing CTA.
+- Never call the GSX-8S a scooter; never use scooter, moped, or #ScooterRider.
+- Do not claim speed, a highway, exact weather, or a route name unless supplied in the scene facts.
+- Hashtags will be added by the pipeline: write no hashtags yourself.
 - YouTube title must include 'GSX-8S' and 'Raw Sound', be <= 100 chars, and differ materially from recent titles.
-- YouTube description must contain #Shorts and 4-7 targeted hashtags total.
-- TikTok caption: 1-3 short paragraphs and 5-7 hashtags, including #fyp.
-- Instagram caption: 1-3 short paragraphs and 5-7 hashtags, never #fyp or #Shorts.
+- YouTube description: 1-3 short paragraphs, no hashtags in model output.
+- TikTok caption: 1-3 short paragraphs, no hashtags in model output.
+- Instagram caption: 1-3 short paragraphs, no hashtags in model output.
 
 Return JSON only:
 {{
@@ -211,10 +224,10 @@ Return JSON only:
         raise AIMetadataError("YouTube output is incomplete")
     if len(yt["title"]) > 100 or "GSX-8S" not in yt["title"] or "Raw Sound" not in yt["title"]:
         raise AIMetadataError("YouTube title violates channel rules")
-    # Local models occasionally omit the mandatory platform tag; normalize it
-    # rather than throwing away an otherwise valid review artifact.
-    if "#Shorts" not in yt["description"]:
-        yt["description"] = yt["description"].rstrip() + "\n\n#Shorts"
+    yt["description"] = _normalize_caption(yt["description"], YOUTUBE_HASHTAGS)
+    yt["tags"] = ["GSX8S", "Suzuki GSX-8S", "raw sound", "motorcycle ride", "Arrow exhaust", "motorcycle shorts", "Austria"]
+    copy["tiktok"]["caption"] = _normalize_caption(copy["tiktok"]["caption"], TIKTOK_HASHTAGS)
+    copy["instagram"]["caption"] = _normalize_caption(copy["instagram"]["caption"], INSTAGRAM_HASHTAGS)
     return copy
 
 
