@@ -3,8 +3,8 @@
 Lumi's Lane Shorts-Pipeline
 ===========================
 Analysiert Ride-Videos aus /material (2_output), schneidet die lautesten
-("revviesten") Momente als vertikale Shorts (9:16, 1080x1920) und lädt sie
-privat auf YouTube hoch (upload.py + OAuth-Token aus /config).
+("revviesten") Momente als vertikale Shorts (9:16, 1080x1920) und übergibt
+sie als Drafts an Postiz für YouTube, TikTok und Instagram.
 
 Läuft im Container (Service oder One-Shot):
   /material  -> 2_output (Quellvideos)
@@ -19,9 +19,10 @@ import json
 import os
 import re
 import subprocess
-import sys
 import tempfile
 import wave
+
+from postiz_client import PostizClient, PostizError
 
 MATERIAL = "/material"
 PIPELINE = "/pipeline"
@@ -169,6 +170,18 @@ def make_metadata(video_label, seg_len):
     return f"{title}\n\n{desc}\n\n{HASHTAGS}\n"
 
 
+def parse_metadata(md_path):
+    """Parse the existing metadata file without invoking the legacy uploader."""
+    with open(md_path, encoding="utf-8") as f:
+        lines = [line.rstrip() for line in f if line.strip()]
+    if not lines:
+        raise RuntimeError(f"Metadaten-Datei ist leer: {md_path}")
+    title = lines[0].lstrip("#").strip()
+    hashtags = [word for word in lines[-1].split() if word.startswith("#")]
+    description = "\n".join(lines[1:])
+    return title, description, [tag.lstrip("#") for tag in hashtags]
+
+
 def load_state():
     if os.path.exists(STATE):
         with open(STATE, encoding="utf-8") as f:
@@ -177,8 +190,12 @@ def load_state():
 
 
 def save_state(state):
-    with open(STATE, "w", encoding="utf-8") as f:
+    tmp = STATE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(state, f, indent=1, ensure_ascii=False)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, STATE)
 
 
 def run_pipeline(video=None, dry_run=False):
@@ -197,6 +214,9 @@ def run_pipeline(video=None, dry_run=False):
     summary = {"dry_run": dry_run, "processed": []}
     if not videos:
         return summary
+    if not dry_run:
+        # Fail before expensive ffmpeg work when the deployment secret is absent.
+        PostizClient()
 
     for name in videos:
         src = os.path.join(MATERIAL, name)
@@ -219,9 +239,14 @@ def run_pipeline(video=None, dry_run=False):
             for i, (start, seg_len) in enumerate(segs, 1):
                 key = f"short_{i}"
                 srec = vstate.get(key) or {}
+                # Bereits direkt zu YouTube hochgeladene Legacy-Shorts nie duplizieren.
                 if srec.get("uploaded"):
-                    log(f"  {key} bereits hochgeladen ({srec.get('url')}) — übersprungen")
-                    rec["shorts"].append({"key": key, "url": srec.get("url")})
+                    log(f"  {key} historisch direkt hochgeladen ({srec.get('url')}) — übersprungen")
+                    rec["shorts"].append({"key": key, "url": srec.get("url"), "legacy": True})
+                    continue
+                if srec.get("postiz_draft_created"):
+                    log(f"  {key} bereits als Postiz-Draft übergeben — übersprungen")
+                    rec["shorts"].append({"key": key, "postiz": srec.get("postiz")})
                     continue
                 out_dir = os.path.join(OUT, stem)
                 os.makedirs(out_dir, exist_ok=True)
@@ -240,27 +265,41 @@ def run_pipeline(video=None, dry_run=False):
                     rec["shorts"].append({"key": key, "start": start, "len": seg_len,
                                           "dry_run": True})
                     continue
-                # Upload (privat) über den bestehenden Uploader
-                up = subprocess.run(
-                    [sys.executable, UPLOADER, mp4, md, "--privacy", "private"],
-                    capture_output=True, text=True)
-                out_txt = up.stdout.strip()
-                if up.returncode != 0:
-                    log(f"  FEHLER Upload {key}: {up.stderr[-400:]}")
-                    rec["shorts"].append({"key": key, "error": up.stderr[-300:]})
+                # Persist every external boundary. A run interrupted after a media upload
+                # reuses that asset; a lost draft response is held for manual reconciliation
+                # rather than risking three duplicate drafts on the next cron tick.
+                try:
+                    postiz = srec.get("postiz", {})
+                    if postiz.get("status") == "draft_creating":
+                        raise PostizError("previous draft request is ambiguous; reconcile this short in Postiz before retrying")
+                    client = PostizClient()
+                    if postiz.get("media_id") and postiz.get("media_path"):
+                        media = MediaAsset(postiz["media_id"], postiz["media_path"])
+                    else:
+                        media = client.upload_media(mp4)
+                        postiz.update({"media_id": media.id, "media_path": media.path, "status": "media_uploaded"})
+                        srec["postiz"] = postiz
+                        vstate[key] = srec
+                        save_state(state)
+                    title, description, tags = parse_metadata(md)
+                    postiz["status"] = "draft_creating"
+                    srec["postiz"] = postiz
+                    vstate[key] = srec
+                    save_state(state)
+                    drafts = client.create_drafts(media, title, description, tags)
+                except PostizError as exc:
+                    log(f"  FEHLER Postiz-Übergabe {key}: {exc}")
+                    rec["shorts"].append({"key": key, "error": str(exc)})
                     save_state(state)
                     summary["processed"].append(rec)
-                    return summary  # Video bleibt unfertig; nächster Lauf versucht Rest
-                url = ""
-                m = re.search(r"https://youtu\.be/[A-Za-z0-9_-]+", out_txt)
-                if m:
-                    url = m.group(0)
-                log(f"  ✅ {key} hochgeladen (privat): {url}")
+                    return summary
                 srec["start"], srec["len"] = start, seg_len
-                srec["uploaded"] = True
-                srec["url"] = url
+                srec["postiz_draft_created"] = True
+                postiz.update({"status": "draft_created", "draft_response": drafts})
+                srec["postiz"] = postiz
                 vstate[key] = srec
-                rec["shorts"].append({"key": key, "url": url})
+                rec["shorts"].append({"key": key, "postiz": srec["postiz"]})
+                log(f"  ✅ {key} als Draft an Postiz übergeben: {media.path}")
                 made += 1
             if not dry_run:
                 vstate["done"] = True

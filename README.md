@@ -8,13 +8,21 @@ raw sound rides):
   `/config`-Mount (client_secret.json + token.json)
 - **Shorts-Pipeline** (`app/make_shorts.py`) — analysiert Ride-Videos aus
   `/material`, schneidet die lautesten 20–40s-Momente als vertikale Shorts
-  (9:16, 1080×1920, loudnorm) und lädt sie **privat** hoch
+  (9:16, 1080×1920, loudnorm) und legt sie als **Postiz-Drafts** für YouTube,
+  TikTok und Instagram an
 - **HTTP-Service** (`app/api.py`, FastAPI) — dauerlaufender Container, der für
   Uploads/Shorts invoked wird
 
-Keine Credentials im Repo — OAuth-Token und Client-Secret werden ausschließlich
-über den Volume-Mount `/config` bereitgestellt. Der Service ist per compose nur
-an `127.0.0.1` gebunden.
+Keine Credentials im Repo — OAuth-Token, Client-Secret und der Postiz-API-Key
+werden ausschließlich über den Volume-Mount `/config` bereitgestellt. Der Service
+ist per compose nur an `127.0.0.1` gebunden.
+
+### Postiz-Key für Shorts
+
+In Postiz unter **Settings → Developers** einen API-Key erzeugen und auf apollo
+als `/mnt/user/appdata/youtube-uploader/config/postiz_api_key` ablegen
+(`chmod 600`). Der Key wird nicht geloggt. Ohne diese Datei rendert die Pipeline
+keine neuen Drafts und gibt stattdessen eine eindeutige Fehlermeldung aus.
 
 ## Struktur
 
