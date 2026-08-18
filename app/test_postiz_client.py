@@ -49,6 +49,7 @@ class PostizPayloadTests(unittest.TestCase):
         self.assertEqual(session.headers["Authorization"], "test-key")
         post_payload = session.calls[-1][2]["json"]
         self.assertEqual(post_payload["type"], "draft")
+        self.assertTrue(post_payload["date"].endswith("Z"))
         self.assertEqual(len(post_payload["posts"]), 3)
         youtube, tiktok, instagram = post_payload["posts"]
         self.assertEqual(youtube["settings"]["type"], "private")

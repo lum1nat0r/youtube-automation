@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -86,6 +87,8 @@ class PostizClient:
         common_value = [{"content": description, "image": attachment}]
         payload = {
             "type": "draft",
+            # Postiz requires date even for drafts; it is ignored until the draft is scheduled.
+            "date": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "shortLink": False,
             "tags": [],
             "posts": [
