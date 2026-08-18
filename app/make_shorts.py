@@ -222,7 +222,7 @@ def prepare_legacy_migration(state):
             if not srec.get("uploaded"):
                 continue
             migration = srec.setdefault("migration", {})
-            if migration.get("status") in {"scheduled", "published", "skip"}:
+            if migration.get("status") in {"scheduled", "published", "skip", "scheduling"}:
                 continue
             migration["status"] = "ready"
             if srec.get("url"):

@@ -16,6 +16,15 @@ class ShortQueueTests(unittest.TestCase):
         self.assertEqual(result["KK_back_1.mp4"]["short_1"]["migration"]["status"], "ready")
         self.assertEqual(result["KK_back_1.mp4"]["short_1"]["migration"]["legacy_youtube_url"], "https://youtu.be/old")
 
+    def test_migration_does_not_retry_an_ambiguous_schedule_request(self):
+        state = {
+            "KK_back_1.mp4": {
+                "short_1": {"uploaded": True, "migration": {"status": "scheduling", "scheduled_at": "2026-08-19T18:30:00+02:00"}},
+            },
+        }
+        result = make_shorts.prepare_legacy_migration(state)
+        self.assertEqual(result["KK_back_1.mp4"]["short_1"]["migration"]["status"], "scheduling")
+
     def test_queue_is_every_two_days_at_1830_vienna(self):
         now = datetime(2026, 8, 18, 10, 0, tzinfo=ZoneInfo("Europe/Vienna"))
         slots = make_shorts.plan_queue_slots(3, now=now)
