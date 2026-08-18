@@ -21,6 +21,8 @@ import re
 import subprocess
 import tempfile
 import wave
+from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 from postiz_client import MediaAsset, PostizClient, PostizError
 import ai_metadata
@@ -198,6 +200,121 @@ def save_state(state):
         f.flush()
         os.fsync(f.fileno())
     os.replace(tmp, STATE)
+
+
+QUEUE_TZ = ZoneInfo("Europe/Vienna")
+QUEUE_TIME = time(18, 30)
+QUEUE_INTERVAL_DAYS = 2
+SKIPPED_LEGACY_SOURCES = {"schoenau.mp4"}
+
+
+def prepare_legacy_migration(state):
+    """Label old direct YouTube records without creating or changing Postiz posts."""
+    for video, vstate in state.items():
+        if not isinstance(vstate, dict):
+            continue
+        if video.lower() in SKIPPED_LEGACY_SOURCES:
+            vstate["migration"] = {"status": "skip", "reason": "Schönau already published"}
+            continue
+        for key, srec in vstate.items():
+            if not key.startswith("short_") or not isinstance(srec, dict):
+                continue
+            if not srec.get("uploaded"):
+                continue
+            migration = srec.setdefault("migration", {})
+            if migration.get("status") in {"scheduled", "published", "skip"}:
+                continue
+            migration["status"] = "ready"
+            if srec.get("url"):
+                migration.setdefault("legacy_youtube_url", srec["url"])
+    return state
+
+
+def plan_queue_slots(count, now=None):
+    """Return deterministic 18:30 Vienna slots, two calendar days apart."""
+    if count < 0:
+        raise ValueError("count must not be negative")
+    now = now or datetime.now(QUEUE_TZ)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=QUEUE_TZ)
+    else:
+        now = now.astimezone(QUEUE_TZ)
+    first = datetime.combine(now.date(), QUEUE_TIME, tzinfo=QUEUE_TZ)
+    if now >= first:
+        first += timedelta(days=1)
+    return [first + timedelta(days=QUEUE_INTERVAL_DAYS * i) for i in range(count)]
+
+
+def legacy_queue_candidates(state, now=None):
+    """Return only migration-ready legacy Shorts, excluding explicitly skipped rides."""
+    candidates = []
+    for video in sorted(state):
+        vstate = state[video]
+        if not isinstance(vstate, dict) or vstate.get("migration", {}).get("status") == "skip":
+            continue
+        stem = os.path.splitext(video)[0]
+        for key in sorted(k for k in vstate if k.startswith("short_")):
+            srec = vstate[key]
+            if not isinstance(srec, dict) or srec.get("migration", {}).get("status") != "ready":
+                continue
+            candidates.append({
+                "video": video, "key": key,
+                "mp4": os.path.join(OUT, stem, f"{key}.mp4"),
+                "metadata": os.path.join(OUT, stem, f"{key}.md"),
+            })
+    for candidate, slot in zip(candidates, plan_queue_slots(len(candidates), now=now)):
+        candidate["scheduled_at"] = slot.isoformat().replace("+00:00", "Z")
+    return candidates
+
+
+def migrate_legacy_queue(apply=False, now=None):
+    """Plan, or deliberately create, the historical two-day Postiz queue.
+
+    `apply=False` is side-effect-free. With apply enabled, every external boundary is
+    persisted first so a failed run cannot silently create duplicate calendar items.
+    """
+    state = load_state()
+    prepare_legacy_migration(state)
+    candidates = legacy_queue_candidates(state, now=now)
+    if not apply:
+        return {"apply": False, "count": len(candidates), "candidates": candidates}
+
+    save_state(state)  # Persist Schönau skip + ready labels before touching Postiz.
+    client = PostizClient()
+    scheduled = []
+    for candidate in candidates:
+        srec = state[candidate["video"]][candidate["key"]]
+        migration = srec["migration"]
+        if migration.get("status") != "ready":
+            continue
+        if not os.path.isfile(candidate["mp4"]) or not os.path.isfile(candidate["metadata"]):
+            migration.update({"status": "failed", "error": "render or metadata missing"})
+            save_state(state)
+            continue
+        try:
+            postiz = srec.setdefault("postiz", {})
+            if postiz.get("media_id") and postiz.get("media_path"):
+                media = MediaAsset(postiz["media_id"], postiz["media_path"])
+            else:
+                media = client.upload_media(candidate["mp4"])
+                postiz.update({"media_id": media.id, "media_path": media.path})
+                save_state(state)
+            title, description, tags = parse_metadata(candidate["metadata"])
+            platform_copy = srec.get("ai_metadata", {}).get("copy")
+            migration.update({"status": "scheduling", "scheduled_at": candidate["scheduled_at"]})
+            save_state(state)
+            response = client.create_scheduled_posts(
+                media, title, description, tags, candidate["scheduled_at"], platform_copy=platform_copy
+            )
+            migration.update({"status": "scheduled", "postiz_response": response})
+            scheduled.append(candidate)
+            save_state(state)
+        except Exception as exc:
+            # 'scheduling' intentionally remains ambiguous: never retry blindly.
+            migration["error"] = str(exc)
+            save_state(state)
+            raise
+    return {"apply": True, "count": len(scheduled), "scheduled": scheduled}
 
 
 def run_pipeline(video=None, dry_run=False):

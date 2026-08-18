@@ -43,6 +43,10 @@ class AIMetadataReq(BaseModel):
     short: str
 
 
+class LegacyMigrationReq(BaseModel):
+    apply: bool = False
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -51,6 +55,27 @@ def health():
 @app.get("/status")
 def status():
     return {"state": make_shorts.load_state()}
+
+
+@app.get("/migration/plan")
+def migration_plan():
+    """Side-effect-free preview of the historic Postiz calendar queue."""
+    return make_shorts.migrate_legacy_queue(apply=False)
+
+
+@app.post("/migration/queue")
+def queue_legacy_migration(req: LegacyMigrationReq):
+    """Create the queue only when the caller explicitly sends apply=true."""
+    if not req.apply:
+        return make_shorts.migrate_legacy_queue(apply=False)
+    if not _lock.acquire(blocking=False):
+        raise HTTPException(409, "Shorts-Pipeline läuft bereits")
+    try:
+        return make_shorts.migrate_legacy_queue(apply=True)
+    except Exception:
+        raise HTTPException(500, traceback.format_exc())
+    finally:
+        _lock.release()
 
 
 @app.post("/shorts")

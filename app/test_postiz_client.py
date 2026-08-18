@@ -61,6 +61,20 @@ class PostizPayloadTests(unittest.TestCase):
         self.assertIn("Description #Shorts", youtube["value"][0]["content"])
         for item in post_payload["posts"]:
             self.assertEqual(item["value"][0]["image"][0]["path"], "https://media.example/short.mp4")
+    def test_creates_scheduled_posts_at_the_requested_utc_time(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            key = Path(tmp) / "key"
+            key.write_text("test-key")
+            session = FakeSession()
+            client = PostizClient("https://postiz.tail.tlumesberger.at/api/public/v1", str(key), session)
+            client.create_scheduled_posts(
+                MediaAsset("media-1", "https://media.example/short.mp4"),
+                "A Short", "Description #Shorts", ["Shorts"], "2026-08-18T16:30:00Z"
+            )
+        post_payload = session.calls[-1][2]["json"]
+        self.assertEqual(post_payload["type"], "schedule")
+        self.assertEqual(post_payload["date"], "2026-08-18T16:30:00Z")
+
     def test_rejects_an_untrusted_postiz_host(self):
         with tempfile.TemporaryDirectory() as tmp:
             key = Path(tmp) / "key"

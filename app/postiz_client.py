@@ -145,3 +145,44 @@ class PostizClient:
             ],
         }
         return self._request("POST", "/posts", json=payload)
+
+    def create_scheduled_posts(self, media: MediaAsset, title: str, description: str, tags: list[str],
+                               scheduled_at: str, platform_copy: dict[str, Any] | None = None) -> Any:
+        """Create one editable Postiz calendar item for all three platforms."""
+        integrations = self.integrations_by_provider()
+        if platform_copy:
+            youtube = platform_copy["youtube"]
+            tiktok = platform_copy["tiktok"]
+            instagram = platform_copy["instagram"]
+            title, description, tags = youtube["title"], youtube["description"], youtube["tags"]
+            tiktok_title, tiktok_content = tiktok["title"], tiktok["caption"]
+            instagram_content = instagram["caption"]
+        else:
+            tiktok_title = title[:90]
+            tiktok_content = description
+            instagram_content = description
+        tag_objects = [{"value": tag, "label": tag} for tag in tags]
+        attachment = [{"id": media.id, "path": media.path}]
+        payload = {
+            "type": "schedule",
+            "date": scheduled_at,
+            "shortLink": False,
+            "tags": [],
+            "posts": [
+                {"integration": {"id": integrations["youtube"]["id"]},
+                 "value": [{"content": description, "image": attachment}],
+                 "settings": {"__type": "youtube", "title": title, "type": "private",
+                              "selfDeclaredMadeForKids": "no", "tags": tag_objects}},
+                {"integration": {"id": integrations["tiktok"]["id"]},
+                 "value": [{"content": tiktok_content, "image": attachment}],
+                 "settings": {"__type": "tiktok", "title": tiktok_title[:90], "privacy_level": "SELF_ONLY",
+                              "duet": True, "stitch": True, "comment": True, "autoAddMusic": "no",
+                              "brand_content_toggle": False, "brand_organic_toggle": False,
+                              "video_made_with_ai": False, "content_posting_method": "UPLOAD"}},
+                {"integration": {"id": integrations["instagram-standalone"]["id"]},
+                 "value": [{"content": instagram_content, "image": attachment}],
+                 "settings": {"__type": "instagram-standalone", "post_type": "post",
+                              "is_trial_reel": False, "collaborators": []}},
+            ],
+        }
+        return self._request("POST", "/posts", json=payload)
