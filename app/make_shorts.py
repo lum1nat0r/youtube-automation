@@ -22,7 +22,8 @@ import subprocess
 import tempfile
 import wave
 
-from postiz_client import PostizClient, PostizError
+from postiz_client import MediaAsset, PostizClient, PostizError
+import ai_metadata
 
 MATERIAL = "/material"
 PIPELINE = "/pipeline"
@@ -259,6 +260,28 @@ def run_pipeline(video=None, dry_run=False):
                     with open(md, "w", encoding="utf-8") as f:
                         f.write(make_metadata(label, seg_len, i - 1))
                 log(f"  {key}: {mp4} ({os.path.getsize(mp4)/1e6:.1f} MB)")
+                # Shadow mode: write a reviewable AI artifact, but keep the existing
+                # template metadata for Postiz until Thomas explicitly approves phase B.
+                if not dry_run and not srec.get("ai_metadata"):
+                    try:
+                        artifact = ai_metadata.generate_shadow_metadata(mp4, state)
+                        artifact_path = f"{mp4[:-4]}.ai-metadata.json"
+                        if artifact["status"] == "generated":
+                            ai_metadata.write_artifact(artifact_path, artifact)
+                            log(f"  🤖 KI-Schattenanalyse erstellt: {artifact_path}")
+                        else:
+                            log(f"  KI-Schattenanalyse übersprungen: {artifact['reason']}")
+                        artifact["path"] = artifact_path if artifact["status"] == "generated" else None
+                        srec["ai_metadata"] = artifact
+                        vstate[key] = srec
+                        save_state(state)
+                    except Exception as exc:
+                        # AI generation is never allowed to block rendering or draft creation.
+                        log(f"  WARN KI-Schattenanalyse {key}: {exc}")
+                        srec["ai_metadata"] = {"status": "error", "error": str(exc),
+                                               "version": ai_metadata.AI_METADATA_VERSION}
+                        vstate[key] = srec
+                        save_state(state)
                 if dry_run:
                     srec["start"], srec["len"] = start, seg_len
                     srec["dry_run"] = True

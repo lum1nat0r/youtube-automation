@@ -20,6 +20,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 import make_shorts
+import ai_metadata
 import upload as up
 
 app = FastAPI(title="Lumi's Lane YouTube Automation", version="1.0.0")
@@ -36,6 +37,10 @@ class UploadReq(BaseModel):
     metadata: str
     privacy: str = "private"
     thumb: str | None = None
+
+
+class AIMetadataReq(BaseModel):
+    short: str
 
 
 @app.get("/health")
@@ -57,6 +62,28 @@ def run_shorts(req: ShortsReq | None = None):
         raise HTTPException(409, "Shorts-Pipeline läuft bereits")
     try:
         return make_shorts.run_pipeline(video=req.video, dry_run=req.dry_run)
+    except Exception:
+        raise HTTPException(500, traceback.format_exc())
+    finally:
+        _lock.release()
+
+
+@app.post("/ai-metadata")
+def make_ai_metadata(req: AIMetadataReq):
+    """Analyze an existing rendered short in shadow mode; never creates a post."""
+    out_root = os.path.realpath(make_shorts.OUT) + os.sep
+    short = os.path.realpath(req.short)
+    if not short.startswith(out_root) or not short.endswith(".mp4"):
+        raise HTTPException(400, "short must be an MP4 below /pipeline/out")
+    if not os.path.isfile(short):
+        raise HTTPException(404, f"Short nicht gefunden: {req.short}")
+    if not _lock.acquire(blocking=False):
+        raise HTTPException(409, "Shorts-Pipeline läuft bereits")
+    try:
+        artifact = ai_metadata.generate_shadow_metadata(short, make_shorts.load_state())
+        if artifact["status"] == "generated":
+            ai_metadata.write_artifact(f"{short[:-4]}.ai-metadata.json", artifact)
+        return artifact
     except Exception:
         raise HTTPException(500, traceback.format_exc())
     finally:

@@ -11,3 +11,9 @@ services:
       - /mnt/user/video-material/Lumis-Lane/2_output:/material
       - /mnt/user/appdata/shorts-pipeline:/pipeline
       - /mnt/user/appdata/youtube-uploader/config:/config
+    # Shadow-mode AI metadata: stays disabled until these three values are set
+    # in Portainer and /config/ai_metadata_api_key exists (chmod 600).
+    environment:
+      AI_METADATA_BASE_URL: ${AI_METADATA_BASE_URL:-}
+      AI_METADATA_MODEL: ${AI_METADATA_MODEL:-}
+      AI_METADATA_API_KEY_FILE: /config/ai_metadata_api_key

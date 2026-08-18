@@ -24,6 +24,36 @@ als `/mnt/user/appdata/youtube-uploader/config/postiz_api_key` ablegen
 (`chmod 600`). Der Key wird nicht geloggt. Ohne diese Datei rendert die Pipeline
 keine neuen Drafts und gibt stattdessen eine eindeutige Fehlermeldung aus.
 
+### KI-Schattenanalyse für Shorts
+
+Die KI-Analyse ist bewusst zunächst nur ein **Review-Schritt**: Sie erstellt
+neben jedem analysierten Short eine `<short>.ai-metadata.json` mit Szenenprofil,
+YouTube-/TikTok-/Instagram-Copy und einem Hook-Kategorietag. Sie verändert weder
+die bestehende `.md`-Metadaten-Datei noch Postiz-Drafts oder Veröffentlichungen.
+
+Konfiguration auf apollo (nicht ins Repository einchecken):
+
+1. Einen OpenAI-kompatiblen multimodalen Endpoint und ein Vision-Modell wählen.
+2. API-Key nach `/mnt/user/appdata/youtube-uploader/config/ai_metadata_api_key`
+   schreiben und mit `chmod 600` schützen.
+3. In Portainer für `yt-service` setzen:
+   - `AI_METADATA_BASE_URL` (z. B. der `/v1`-Endpoint)
+   - `AI_METADATA_MODEL`
+   - `AI_METADATA_API_KEY_FILE=/config/ai_metadata_api_key`
+4. Stack mit „Pull latest image" aktualisieren.
+
+Ist die Konfiguration nicht vorhanden oder die KI temporär nicht erreichbar,
+läuft die bestehende Shorts-/Postiz-Pipeline unverändert weiter. Das Ereignis wird
+nur als `not_configured` bzw. `error` im Pipeline-State protokolliert.
+
+Bestehenden Short ohne Postiz-Nebenwirkung analysieren:
+
+```bash
+curl -s -X POST http://localhost:8082/ai-metadata \
+  -H 'content-type: application/json' \
+  -d '{"short":"/pipeline/out/schoenau/short_2.mp4"}'
+```
+
 ## Struktur
 
 ```

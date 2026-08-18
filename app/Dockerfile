@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
 COPY app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app/upload.py app/make_shorts.py app/api.py app/postiz_client.py ./
+COPY app/upload.py app/make_shorts.py app/api.py app/postiz_client.py app/ai_metadata.py ./
 
 # /config: client_secret.json + token.json (OAuth — wird gemountet, NIE im Image)
 # /material: 2_output (Quellvideos)
