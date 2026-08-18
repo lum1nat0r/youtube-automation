@@ -16,7 +16,7 @@ from pathlib import Path
 
 import requests
 
-AI_METADATA_VERSION = "2026-08-18-shadow-v1"
+AI_METADATA_VERSION = "2026-08-18-shadow-v2-ollama"
 FRAME_POSITIONS = (0.05, 0.18, 0.33, 0.50, 0.67, 0.82, 0.95)
 MAX_RECENT_ITEMS = 24
 
@@ -34,18 +34,23 @@ def _run(command):
 
 def _env_config():
     """Return validated config, or (None, reason) when shadow mode is disabled."""
+    provider = os.getenv("AI_METADATA_PROVIDER", "openai").strip().lower()
     endpoint = os.getenv("AI_METADATA_BASE_URL", "").rstrip("/")
     model = os.getenv("AI_METADATA_MODEL", "").strip()
-    key_file = os.getenv("AI_METADATA_API_KEY_FILE", "/config/ai_metadata_api_key")
+    if provider not in {"openai", "ollama"}:
+        return None, "AI_METADATA_PROVIDER must be openai or ollama"
     if not endpoint or not model:
         return None, "AI_METADATA_BASE_URL or AI_METADATA_MODEL is not configured"
+    if provider == "ollama":
+        return {"provider": provider, "endpoint": endpoint, "model": model}, None
+    key_file = os.getenv("AI_METADATA_API_KEY_FILE", "/config/ai_metadata_api_key")
     try:
         api_key = Path(key_file).read_text(encoding="utf-8").strip()
     except OSError:
         return None, f"API key file is unavailable: {key_file}"
     if not api_key:
         return None, f"API key file is empty: {key_file}"
-    return {"endpoint": endpoint, "model": model, "api_key": api_key}, None
+    return {"provider": provider, "endpoint": endpoint, "model": model, "api_key": api_key}, None
 
 
 def configured():
@@ -95,6 +100,34 @@ def _parse_json(content):
 
 
 def _chat(config, messages):
+    if config["provider"] == "ollama":
+        ollama_messages = []
+        for message in messages:
+            content = message["content"]
+            if isinstance(content, str):
+                ollama_messages.append({"role": message["role"], "content": content})
+                continue
+            text = []
+            images = []
+            for part in content:
+                if part["type"] == "text":
+                    text.append(part["text"])
+                elif part["type"] == "image_url":
+                    images.append(part["image_url"]["url"].split(",", 1)[1])
+            ollama_messages.append({"role": message["role"], "content": "\n".join(text), "images": images})
+        response = requests.post(
+            f"{config['endpoint']}/api/chat", headers={"Content-Type": "application/json"},
+            json={"model": config["model"], "stream": False, "format": "json", "think": False,
+                  "options": {"temperature": 0.55}, "messages": ollama_messages}, timeout=180,
+        )
+        if not response.ok:
+            raise AIMetadataError(f"Ollama HTTP {response.status_code}: {response.text[-400:]}")
+        try:
+            content = response.json()["message"]["content"]
+        except (KeyError, TypeError, ValueError) as exc:
+            raise AIMetadataError("unexpected Ollama response") from exc
+        return _parse_json(content)
+
     response = requests.post(
         f"{config['endpoint']}/chat/completions",
         headers={"Authorization": f"Bearer {config['api_key']}", "Content-Type": "application/json"},

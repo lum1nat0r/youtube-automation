@@ -11,9 +11,11 @@ services:
       - /mnt/user/video-material/Lumis-Lane/2_output:/material
       - /mnt/user/appdata/shorts-pipeline:/pipeline
       - /mnt/user/appdata/youtube-uploader/config:/config
-    # Shadow-mode AI metadata: stays disabled until these three values are set
-    # in Portainer and /config/ai_metadata_api_key exists (chmod 600).
+    # Local, credential-free AI shadow analysis via Apollo's Ollama service.
+    # The host-gateway mapping never exposes Ollama outside Docker.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
-      AI_METADATA_BASE_URL: ${AI_METADATA_BASE_URL:-}
-      AI_METADATA_MODEL: ${AI_METADATA_MODEL:-}
-      AI_METADATA_API_KEY_FILE: /config/ai_metadata_api_key
+      AI_METADATA_PROVIDER: ollama
+      AI_METADATA_BASE_URL: http://host.docker.internal:11434
+      AI_METADATA_MODEL: qwen3.5:9b

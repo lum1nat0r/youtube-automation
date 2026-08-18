@@ -20,6 +20,18 @@ class FakeResponse:
         return {"choices": [{"message": {"content": json.dumps(self.content)}}]}
 
 
+class OllamaResponse:
+    ok = True
+    status_code = 200
+    text = ""
+
+    def __init__(self, content):
+        self.content = content
+
+    def json(self):
+        return {"message": {"content": json.dumps(self.content)}}
+
+
 class AIMetadataTests(unittest.TestCase):
     def test_reports_unconfigured_without_attempting_network(self):
         with patch.dict(os.environ, {}, clear=True):
@@ -28,7 +40,7 @@ class AIMetadataTests(unittest.TestCase):
         self.assertIn("AI_METADATA_BASE_URL", artifact["reason"])
 
     def test_generates_valid_platform_copy(self):
-        config = {"endpoint": "https://example.invalid/v1", "model": "test", "api_key": "secret"}
+        config = {"provider": "openai", "endpoint": "https://example.invalid/v1", "model": "test", "api_key": "secret"}
         scene = {
             "scene_type": "rural curves", "road_character": "flowing bends",
             "environment": ["forest"], "light": "golden", "mood": ["free"],
@@ -51,6 +63,15 @@ class AIMetadataTests(unittest.TestCase):
         request = post.call_args.kwargs
         self.assertEqual(request["headers"]["Authorization"], "Bearer secret")
         self.assertNotIn("secret", json.dumps(request["json"]))
+
+    def test_ollama_uses_native_chat_and_no_authorization_header(self):
+        config = {"provider": "ollama", "endpoint": "http://ollama", "model": "qwen3.5:9b"}
+        with patch("ai_metadata.requests.post", return_value=OllamaResponse({"ok": True})) as post:
+            output = ai_metadata._chat(config, [{"role": "user", "content": "Return JSON."}])
+        self.assertEqual(output, {"ok": True})
+        self.assertEqual(post.call_args.args[0], "http://ollama/api/chat")
+        self.assertNotIn("Authorization", post.call_args.kwargs["headers"])
+        self.assertTrue(post.call_args.kwargs["json"]["think"] is False)
 
     def test_writes_artifact_atomically(self):
         with tempfile.TemporaryDirectory() as tmp:
