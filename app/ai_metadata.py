@@ -211,8 +211,10 @@ Return JSON only:
         raise AIMetadataError("YouTube output is incomplete")
     if len(yt["title"]) > 100 or "GSX-8S" not in yt["title"] or "Raw Sound" not in yt["title"]:
         raise AIMetadataError("YouTube title violates channel rules")
+    # Local models occasionally omit the mandatory platform tag; normalize it
+    # rather than throwing away an otherwise valid review artifact.
     if "#Shorts" not in yt["description"]:
-        raise AIMetadataError("YouTube description is missing #Shorts")
+        yt["description"] = yt["description"].rstrip() + "\n\n#Shorts"
     return copy
 
 
